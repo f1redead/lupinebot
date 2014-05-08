@@ -110,6 +110,7 @@ class XMPPBot(ClientXMPP):
 		plugin.action(event, body, message_type)
 
 	def muc_online(self, event):
+		pass
 		# You can do many cool things in this place, yes..
 
 if __name__ == "__main__":
