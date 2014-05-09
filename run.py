@@ -18,23 +18,24 @@ class XMPPBot(ClientXMPP):
 								'message': self.message_received,
 								'muc::{conference}::got_online': self.muc_online	
 							}
-		self.xeps_to_load = ["0092", "0045"]
+		self.xeps_to_load = ["xep_0092", "xep_0045"]
 		self.read_configs()
 
 	def post_init(self):
 		ClientXMPP.__init__(self, self.settings['auth']['jid'], self.settings['auth']['password'])
-
 		self.settings['auth']['password'] = ""
+
 		# Settings dump just for sure
 		log('\n' + json.dumps(self.settings, indent=4), 0)
 
 		# Now.. We starting!
 		self. python_version = '.'.join([str(n) for n in list(sys.version_info)][:3])
 		log("I'm running at Python {version}".format(version=self.python_version))
-		log("My JID is {jid}".format(jid=self.settings['auth']['jid']))
+		log("My JID is {jid}".format(jid=colored(self.settings['auth']['jid'], "cyan")))
 
-		log("Loading plugins")
 		self.plugins = self.load_plugins()
+		log("Plugins list: " + ', '.join(self.plugins['commands']))
+		log(self.plugins['info'])
 		self.register_handlers()
 
 	def format_platform(self, platform):
@@ -60,7 +61,7 @@ class XMPPBot(ClientXMPP):
 			if handler.startswith("muc"):
 				for muc in self.muc_list:
 					handler = handler.format(conference=muc)
-					log("Registering MUC handler: {handler}".format(handler=handler))
+					log("Registering MUC handler: {handler}".format(handler=handler.replace(muc, colored(muc, "red"))))
 					self.add_event_handler(handler, function)
 			else:
 				log("Registering handler: {handler}".format(handler=handler))
@@ -96,17 +97,22 @@ class XMPPBot(ClientXMPP):
 
 	def load_plugins(self):
 		commands = []
+		info = {}
 		for filepath in self.get_filepaths("plugins"):
 			if filepath.endswith(".py"):
 				plugin_name = filepath.split("/")[-1][:-3]
 				plugin_path = filepath.replace("/", ".")[:-3]
 				if plugin_name != "__init__":
 					plugins_import = __import__(plugin_path)
-					commands.append(plugin_name)
-		return {'attrs': plugins_import, 'commands': commands}
+					plugin = getattr(plugins_import, plugin_name)
+					# Like so: {'ping': 'misc'}
+					for cmd in plugin.cmds:
+						info[cmd] = plugin_name
+					commands.extend(plugin.cmds)
+		return {'attrs': plugins_import, 'commands': commands, 'info': info}
 
 	def call_plugin(self, event, body, message_type):
-		plugin = getattr(self.plugins['attrs'], body[0])
+		plugin = getattr(self.plugins['attrs'], self.plugins['info'][body[0]])
 		plugin.action(event, body, message_type)
 
 	def muc_online(self, event):
@@ -120,20 +126,22 @@ if __name__ == "__main__":
 
 	logger = Logger(config['settings']['debug'], config['settings']['color'])
 	log = logger.log
+	colored = logger.colored
 
 	if config['settings']['hard_debug']: logging.basicConfig(level=logging.DEBUG, format='%(levelname)-8s %(message)s')
 
 	bot.post_init()
-	for number in bot.xeps_to_load:
-		bot.register_plugin('xep_'+number)
+	for xep in bot.xeps_to_load:
+		bot.register_plugin(xep)
 
-	bot['xep_0092'].software_name = config['settings']['bot_name']
-	bot['xep_0092'].version = config['settings']['bot_version']
-	bot['xep_0092'].os = bot.format_platform(config['settings']['bot_platform'])
+	if "xep_0092" in bot.xeps_to_load:
+		bot['xep_0092'].software_name = config['settings']['bot_name']
+		bot['xep_0092'].version = config['settings']['bot_version']
+		bot['xep_0092'].os = bot.format_platform(config['settings']['bot_platform'])
 
 	log("Connecting...")
 	if bot.connect():
-		log("Online!")
+		log(colored("Online!", "green"))
 
 		try: bot.process(block=True)
 		except KeyboardInterrupt:
