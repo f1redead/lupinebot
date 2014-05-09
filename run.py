@@ -80,7 +80,6 @@ class XMPPBot(ClientXMPP):
 			if handler.startswith("muc"):
 				self.register_muc_handler(handler, function, conference)
 		self.plugin['xep_0045'].joinMUC(conference, nickname, wait=True)
-		self.users[conference] = {}
 
 	def register_muc_handler(self, handler, function, conference):
 		handler = handler.format(conference=conference)
@@ -107,9 +106,9 @@ class XMPPBot(ClientXMPP):
 	def get_message_type(self, event):
 		return 'normal' if event['type'] in ('chat', 'normal') else 'groupchat'
 
-	def get_shortname(self, event):
-		# return str(event['from']).split("/")[1]
-		return event['mucnick']
+	def get_shortname(self, event, old_method = False):
+		if old_method: return str(event['from']).split("/")[1]
+		else: return event['mucnick']
 
 	def get_muc(self, event):
 		return str(event['from']).split("/")[0]
@@ -137,10 +136,15 @@ class XMPPBot(ClientXMPP):
 		# Command handler
 		cmd = body[0]
 		args = body[1].split(" ")
+
 		if self.get_command(cmd) != None:
 			if self.have_prefix and event['body'].startswith(self.prefix) or not self.plugins['info'][cmd]['need_prefix']: 
 				if self.get_shortname(event) not in self.nicknames:
-					self.call_plugin(event, body, args, self, self.get_message_type(event))
+					if self.users[str(event['from'])]['privlevel'] >= self.plugins['info'][cmd]['privlevel']:
+						self.call_plugin(event, body, args, self, self.get_message_type(event))
+					else:
+						self.reply(event, "Not enough permissions!")
+
 	def get_filepaths(self, directory):
 		file_paths = []
 
@@ -200,7 +204,7 @@ class XMPPBot(ClientXMPP):
 			elif affiliation == "admin": privlevel = 5
 			else: privlevel = 1
 
-			self.users[room][nick] = {
+			self.users[room + "/" + nick] = {
 				'privlevel': privlevel
 			}
 		# You can do many cool things in this place, yes..
