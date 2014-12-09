@@ -207,7 +207,6 @@ class XMPPBot(ClientXMPP):
 			self.users[room + "/" + nick] = {
 				'privlevel': privlevel
 			}
-		# You can do many cool things in this place, yes..
 
 if __name__ == "__main__":
 	bot = XMPPBot()
